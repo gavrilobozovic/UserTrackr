@@ -1,4 +1,5 @@
 import SimpleOpenNI.*;
+import de.bezier.data.sql.*;
 
 SimpleOpenNI  context;
 color[]       userClr = new color[]{ color(255,0,0),
@@ -15,21 +16,30 @@ int[] timers;    // timers associated to each user id
 boolean[] activeUser;  // used to tell whether a user is active or waiting to be disabled
 
 // google spreadsheet stuff
-String uname = "gavrilo.bozovic@gmail.com";
-String pwd = "newpass01";
-String spreadsheet = "test";
-SpreadSheetManager sm;
+//String uname = "gavrilo.bozovic@gmail.com";
+//String pwd = "newpass01";
+//String spreadsheet = "test";
+//SpreadSheetManager sm;
 
-
-
+MySQL ms;    // database
+String database = "placette_data";
+String user = "admin_placette";
+String pass = "Placette2014";
 
 void setup()
 {
   size(640,480);
   
-  // initialize spreadsheet manager 
-  sm = new SpreadSheetManager(uname, pwd, spreadsheet);
-  sm.init();
+  // connect to the database
+  ms = new MySQL(this, "80.74.148.106", database, user, pass);
+  
+  if(ms.connect()) {
+     println("database connection successful"); 
+  } else {
+     println("failed to connect to the database");
+     exit();
+     return; 
+  }
   
   // initialize simpleopenni
   context = new SimpleOpenNI(this);
@@ -98,7 +108,6 @@ void draw()
       if(Float.isNaN(com2d.x) || Float.isNaN(com2d.y)) {    // the CoM is NaN, meaning the user was lost
         if(activeUser[i]==true) { // the user has just been lost
           println("User: " + i + " walked away after " + (millis()-timers[i])/1000 + " seconds");
-          sm.storeData((float)(millis()-timers[i])/1000);
           activeUser[i]=false;
         }
       } else {
