@@ -13,18 +13,17 @@ PVector com = new PVector();
 PVector com2d = new PVector();     
 
 int[] timers;    // timers associated to each user id
+int[] timeLost;  // time at which the user was lost. -1 is the undefined state meaning that the counter is not running
+int timeOut = 200;  // time, in ms, after which the user is considered lost
 boolean[] activeUser;  // used to tell whether a user is active or waiting to be disabled
-
-// google spreadsheet stuff
-//String uname = "gavrilo.bozovic@gmail.com";
-//String pwd = "newpass01";
-//String spreadsheet = "test";
-//SpreadSheetManager sm;
+float[] averageDistance;  // array of the average distance at which the user was observed
 
 MySQL ms;    // database
 String database = "placette_data";
 String user = "admin_placette";
 String pass = "Placette2014";
+
+String dbCommand;
 
 void setup()
 {
@@ -64,10 +63,14 @@ void setup()
   
   timers = new int[10];
   activeUser = new boolean[10];
+  timeLost = new int[10];
+  averageDistance = new float[10];
   
   for (int i=0;i<10;i++) {
     timers[i]=0;
     activeUser[i]=false;
+    timeLost[i]=-1;
+    averageDistance[i]=0;
   }
 }
 
@@ -91,7 +94,10 @@ void draw()
     // draw the center of mass
     if(context.getCoM(userList[i],com))
     {
+      
       context.convertRealWorldToProjective(com,com2d);
+      if(!Float.isNaN(com2d.x))
+        println("com : " + com + ", com2d : " + com2d);
       stroke(100,255,0);
       strokeWeight(1);
       beginShape(LINES);
@@ -106,9 +112,18 @@ void draw()
       text(Integer.toString(userList[i]),com2d.x,com2d.y);
       
       if(Float.isNaN(com2d.x) || Float.isNaN(com2d.y)) {    // the CoM is NaN, meaning the user was lost
-        if(activeUser[i]==true) { // the user has just been lost
-          println("User: " + i + " walked away after " + (millis()-timers[i])/1000 + " seconds");
-          activeUser[i]=false;
+        if(activeUser[i]==true) { // the user has just been lost: start timer
+          timeLost[i]=millis();
+          activeUser[i] = false;
+        } else {  // the user was already lost: check timer
+          if(millis()-timeLost[i]>timeOut && timeLost[i] != -1) { // we should remove the user
+            println("User: " + i + " was lost after " + (millis()-timers[i])/1000 + " seconds");
+            dbCommand = "INSERT INTO `passers`(`timespent`,`distance`) VALUES (" + (float)(millis()-timers[i])/1000 + ", -1)"; 
+            println(dbCommand);
+            ms.execute(dbCommand);
+            timeLost[i] = -1;
+            averageDistance[i]=0;
+          }
         }
       } else {
         if(activeUser[i]==false) { // a previously nonexistant or disabled user is reactivated
