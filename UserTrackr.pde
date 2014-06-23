@@ -13,9 +13,12 @@ PVector com = new PVector();
 PVector com2d = new PVector();     
 
 int[] timers;    // timers associated to each user id
+
 int[] timeLost;  // time at which the user was lost. -1 is the undefined state meaning that the counter is not running
 int timeOut = 200;  // time, in ms, after which the user is considered lost
 boolean[] activeUser;  // used to tell whether a user is active or waiting to be disabled
+
+int[] framesTracked;  // number of frames during which each user was tracked, -1 when user not tracked
 float[] averageDistance;  // array of the average distance at which the user was observed
 
 MySQL ms;    // database
@@ -65,12 +68,14 @@ void setup()
   activeUser = new boolean[10];
   timeLost = new int[10];
   averageDistance = new float[10];
+  framesTracked=new int [10];
   
   for (int i=0;i<10;i++) {
     timers[i]=0;
     activeUser[i]=false;
     timeLost[i]=-1;
     averageDistance[i]=0;
+    framesTracked[i]=-1;
   }
 }
 
@@ -86,7 +91,8 @@ void draw()
   // draw the skeleton if it's available
   int[] userList = context.getUsers();
   for(int i=0;i<userList.length;i++)
-  {     if(context.isTrackingSkeleton(userList[i]))
+  {     
+    if(context.isTrackingSkeleton(userList[i]))
     {
       stroke(userClr[ (userList[i] - 1) % userClr.length ] );
       drawSkeleton(userList[i]);
@@ -96,8 +102,7 @@ void draw()
     {
       
       context.convertRealWorldToProjective(com,com2d);
-      if(!Float.isNaN(com2d.x))
-        println("com : " + com + ", com2d : " + com2d);
+      
       stroke(100,255,0);
       strokeWeight(1);
       beginShape(LINES);
@@ -118,11 +123,14 @@ void draw()
         } else {  // the user was already lost: check timer
           if(millis()-timeLost[i]>timeOut && timeLost[i] != -1) { // we should remove the user
             println("User: " + i + " was lost after " + (millis()-timers[i])/1000 + " seconds");
-            dbCommand = "INSERT INTO `passers`(`timespent`,`distance`) VALUES (" + (float)(millis()-timers[i])/1000 + ", -1)"; 
+            averageDistance[i]/=framesTracked[i];
+            
+            dbCommand = "INSERT INTO `passers`(`timespent`,`distance`) VALUES (" + (float)(millis()-timers[i])/1000 + "," +averageDistance[i] +")"; 
             println(dbCommand);
             ms.execute(dbCommand);
             timeLost[i] = -1;
             averageDistance[i]=0;
+            framesTracked[i]=-1;
           }
         }
       } else {
@@ -131,6 +139,9 @@ void draw()
           timers[i] = millis();
           activeUser[i] = true;
         }
+        
+        framesTracked[i]++;
+        averageDistance[i]+=com2d.z;
       }
     }
   }    
